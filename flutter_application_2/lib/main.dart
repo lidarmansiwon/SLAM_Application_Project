@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:web_socket_channel/status.dart' as status;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
+import 'parameter_descriptions.dart'; // 설명 Map
 
 void main() {
   runApp(MyApp());
@@ -189,7 +190,7 @@ class _MyHomePageState extends State<MyHomePage> {
     Widget page;
     switch (selectedIndex) {
       case 0:
-        page = GeneratorPage();
+        page = SlamDashboard();
         break;
       case 1:
         page = Sensor();
@@ -210,6 +211,7 @@ class _MyHomePageState extends State<MyHomePage> {
               children: [
                 Expanded(
                   child: NavigationRail(
+                    // extended: constraints.maxWidth >= 1000,
                     extended: false,
                     destinations: const [
                       NavigationRailDestination(
@@ -249,90 +251,210 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class GeneratorPage extends StatelessWidget {
+// ───────────────────────────────────────────────── BigCard ────────────────────
+class BigCard extends StatelessWidget {
+  const BigCard({super.key});
+
   @override
   Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-    var pair = appState.current;
+    final theme = Theme.of(context);
 
-    IconData icon;
-    if (appState.favorites.contains(pair)) {
-      icon = Icons.favorite;
-    } else {
-      icon = Icons.favorite_border;
-    }
+    return Card(
+      color: theme.colorScheme.primary,
+      child: const Padding(
+        padding: EdgeInsets.all(20.0),
+        child: Text(
+          'SLAM',
+          style: TextStyle(fontSize: 48, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+// ───────────────────────────────────────────────── ConfigRow ──────────────────
+class ConfigRow extends StatelessWidget {
+  const ConfigRow({
+    super.key,
+    required this.name,
+    required this.initialValue,
+    required this.description,
+  });
+
+  final String name;
+  final String initialValue;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          BigCard(pair: pair),
-          SizedBox(height: 10),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ElevatedButton.icon(
-                onPressed: () async {
-                  try {
-                    final res = await http.post(
-                      Uri.parse('http://localhost:5001/launch_lidarslam'),
-                    );
-                    if (res.statusCode == 200) {
-                      print('lidarslam launched!');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('LidarSLAM launched')),
-                      );
-                    } else {
-                      print('Failed to Launch: ${res.body}');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to launch LidarSLAM')),
-                      );
-                    }
-                  } catch (e) {
-                    print('HTTP exception: $e');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text('Connection to ROS launcher failed')),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.map),
-                label: const Text('Launch SLAM'),
+          Expanded(flex: 2, child: Text(name)),
+          Expanded(
+            flex: 3,
+            child: Tooltip(
+              message: description,
+              waitDuration: const Duration(milliseconds: 300),
+              child: TextField(
+                controller: TextEditingController(text: initialValue),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
               ),
-              SizedBox(width: 10),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  try {
-                    final res = await http.post(
-                        Uri.parse('http://localhost:5001/stop_lidarslam'));
-                    if (res.statusCode == 200) {
-                      print('✅ LidarSLAM stopped');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('LidarSLAM stopped')),
-                      );
-                    } else {
-                      print('Failed to stop: ${res.body}');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Stop failed: ${res.body}')),
-                      );
-                    }
-                  } catch (e) {
-                    print('Exception: $e');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Connection error')),
-                    );
-                  }
-                },
-                icon: Icon(Icons.stop_circle, color: Colors.red),
-                label: Text('Stop SLAM'),
-              ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
 }
+
+// ──────────────────────────────────────────────── SlamDashboard ───────────────
+class SlamDashboard extends StatefulWidget {
+  const SlamDashboard({super.key});
+
+  @override
+  State<SlamDashboard> createState() => _SlamDashboardState();
+}
+
+class _SlamDashboardState extends State<SlamDashboard> {
+  // Parameters ---------------------------------------------------------------
+  final Map<String, dynamic> _config = {
+    'ndt_resolution': 2.0,
+    'ndt_num_threads': 2,
+    'gicp_corr_dist_threshold': 5.0,
+    'trans_for_mapupdate': 1.5,
+    'vg_size_for_input': 0.5,
+    'vg_size_for_map': 0.1,
+    'use_min_max_filter': true,
+    'scan_min_range': 1.0,
+    'scan_max_range': 200.0,
+    'scan_period': 0.2,
+    'set_initial_pose': true,
+    'initial_pose_x': 0.0,
+    'initial_pose_y': 0.0,
+    'initial_pose_z': 0.0,
+    'initial_pose_qx': 0.0,
+    'initial_pose_qy': 0.0,
+    'initial_pose_qz': 0.0,
+    'initial_pose_qw': 1.0,
+    'gb_ndt_resolution': 1.0,
+    'gb_ndt_num_threads': 2,
+    'voxel_leaf_size': 0.1,
+    'loop_detection_period': 3000,
+    'threshold_loop_closure_score': 0.7,
+    'distance_loop_closure': 100.0,
+    'range_of_searching_loop_closure': 20.0,
+    'search_submap_num': 2,
+    'num_adjacent_pose_constraints': 5,
+    'use_save_map_in_loop': true,
+    'debug_flag': true,
+  };
+
+  // Quick‑and‑dirty dummy descriptions --------------------------------------
+  late final Map<String, String> _desc = parameterDescriptions;
+
+
+  // Launch / stop actions ----------------------------------------------------
+  Future<void> _launchSlam() async {
+    try {
+      final res = await http.post(Uri.parse('http://localhost:5001/launch_lidarslam'));
+      _snack(res.statusCode == 200 ? 'LidarSLAM launched' : 'Failed – ${res.body}');
+    } catch (_) {
+      _snack('Connection error');
+    }
+  }
+
+  Future<void> _stopSlam() async {
+    try {
+      final res = await http.post(Uri.parse('http://localhost:5001/stop_lidarslam'));
+      _snack(res.statusCode == 200 ? 'LidarSLAM stopped' : 'Stop failed – ${res.body}');
+    } catch (_) {
+      _snack('Connection error');
+    }
+  }
+
+  void _saveConfig() => _snack('Configuration saved!');
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+  // UI ----------------------------------------------------------------------
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Left pane -------------------------------------------------------
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const BigCard(),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _launchSlam,
+                      icon: const Icon(Icons.map),
+                      label: const Text('Launch SLAM'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
+                      onPressed: _stopSlam,
+                      icon: const Icon(Icons.stop_circle, color: Colors.red),
+                      label: const Text('Stop SLAM'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const VerticalDivider(thickness: 1, width: 1),
+          // Right pane ------------------------------------------------------
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Configuration', style: Theme.of(context).textTheme.headlineMedium),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView(
+                      children: _config.entries
+                          .map((e) => ConfigRow(
+                                name: e.key,
+                                initialValue: '${e.value}',
+                                description: _desc[e.key]!,
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton.icon(
+                      onPressed: _saveConfig,
+                      icon: const Icon(Icons.save),
+                      label: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class Sensor extends StatelessWidget {
   @override
@@ -360,35 +482,6 @@ class Sensor extends StatelessWidget {
   }
 }
 
-class BigCard extends StatelessWidget {
-  const BigCard({
-    super.key,
-    required this.pair,
-  });
-
-  final WordPair pair;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final style = theme.textTheme.displayMedium!.copyWith(
-      color: theme.colorScheme.onPrimary,
-    );
-
-    return Card(
-      color: theme.colorScheme.primary,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Text(
-          pair.asLowerCase,
-          style: style,
-          semanticsLabel: "${pair.first} ${pair.second}",
-        ),
-      ),
-    );
-  }
-}
 
 class DataMoniter extends StatelessWidget {
   @override
@@ -550,16 +643,16 @@ class PathPainter extends CustomPainter {
 }
 
 List<double> eulerFromQuaternion(double x, double y, double z, double w) {
-  final sinr_cosp = 2.0 * (w * x + y * z);
-  final cosr_cosp = 1.0 - 2.0 * (x * x + y * y);
-  final roll = atan2(sinr_cosp, cosr_cosp);
+  final sinrCosp = 2.0 * (w * x + y * z);
+  final cosrCosp = 1.0 - 2.0 * (x * x + y * y);
+  final roll = atan2(sinrCosp, cosrCosp);
 
   final sinp = 2.0 * (w * y - z * x);
   final pitch = (sinp.abs() >= 1.0) ? (pi / 2.0) * sinp.sign : asin(sinp);
 
-  final siny_cosp = 2.0 * (w * z + x * y);
-  final cosy_cosp = 1.0 - 2.0 * (y * y + z * z);
-  final yaw = atan2(siny_cosp, cosy_cosp);
+  final sinyCosp = 2.0 * (w * z + x * y);
+  final cosyCosp = 1.0 - 2.0 * (y * y + z * z);
+  final yaw = atan2(sinyCosp, cosyCosp);
 
   return [roll, pitch, yaw];
 }
