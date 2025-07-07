@@ -323,17 +323,18 @@ class SlamDashboard extends StatefulWidget {
 
 class _SlamDashboardState extends State<SlamDashboard> {
   // Parameters ---------------------------------------------------------------
-  final Map<String, dynamic> _config = {
+  final Map<String, dynamic> _lidarConfig = {
+    'sensorhost_ip': '192.168.1.1',
+    'udp_dest_ip': '192.168.1.2'
+  };
+
+  final Map<String, dynamic> _slamConfig = {
     'ndt_resolution': 2.0,
     'ndt_num_threads': 2,
     'gicp_corr_dist_threshold': 5.0,
     'trans_for_mapupdate': 1.5,
     'vg_size_for_input': 0.5,
     'vg_size_for_map': 0.1,
-    'use_min_max_filter': true,
-    'scan_min_range': 1.0,
-    'scan_max_range': 200.0,
-    'scan_period': 0.2,
     'set_initial_pose': true,
     'initial_pose_x': 0.0,
     'initial_pose_y': 0.0,
@@ -353,17 +354,22 @@ class _SlamDashboardState extends State<SlamDashboard> {
     'num_adjacent_pose_constraints': 5,
     'use_save_map_in_loop': true,
     'debug_flag': true,
+    'scan_min_range': 1.0,
+    'scan_max_range': 200.0,
+    'scan_period': 0.2,
+    'use_min_max_filter': true,
   };
 
-  // Quick‑and‑dirty dummy descriptions --------------------------------------
   late final Map<String, String> _desc = parameterDescriptions;
 
+  bool showLidarConfig = false;
+  bool showSlamConfig = false;
 
-  // Launch / stop actions ----------------------------------------------------
   Future<void> _launchSlam() async {
     try {
-      final res = await http.post(Uri.parse('http://localhost:5001/launch_lidarslam'));
-      _snack(res.statusCode == 200 ? 'LidarSLAM launched' : 'Failed – ${res.body}');
+      final res =
+          await http.post(Uri.parse('http://localhost:5001/launch_lidarslam'));
+      _snack(res.statusCode == 200 ? '운동 계측 시작' : 'Failed – ${res.body}');
     } catch (_) {
       _snack('Connection error');
     }
@@ -371,90 +377,222 @@ class _SlamDashboardState extends State<SlamDashboard> {
 
   Future<void> _stopSlam() async {
     try {
-      final res = await http.post(Uri.parse('http://localhost:5001/stop_lidarslam'));
-      _snack(res.statusCode == 200 ? 'LidarSLAM stopped' : 'Stop failed – ${res.body}');
+      final res =
+          await http.post(Uri.parse('http://localhost:5001/stop_lidarslam'));
+      _snack(res.statusCode == 200 ? '운동 계측 종료' : 'Stop failed – ${res.body}');
     } catch (_) {
       _snack('Connection error');
     }
   }
 
   void _saveConfig() => _snack('Configuration saved!');
-  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _snack(String msg) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
   // UI ----------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Left pane -------------------------------------------------------
-          Expanded(
+    final appState = context.watch<MyAppState>();
+    return Stack(
+      children: [
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 200),
+          left: (showLidarConfig || showSlamConfig) ? -150 : 0,
+          right: (showLidarConfig || showSlamConfig) ? 300 : 0,
+          top: 0,
+          bottom: 0,
+          child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const BigCard(),
-                const SizedBox(height: 20),
+                // 상태 & 연결 버튼 ------------------------------------------
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "ROS Status: ${appState.connectionStatus}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (!appState.isConnected) {
+                            final res = await http.post(Uri.parse(
+                                'http://localhost:5001/launch_rosbridge'));
+                            if (res.statusCode == 200 ||
+                                res.statusCode == 400) {
+                              await Future.delayed(Duration(seconds: 3));
+                              appState.connectToROSBridge();
+                              _snack('ROS Bridge launched');
+                            }
+                          } else {
+                            final res = await http.post(Uri.parse(
+                                'http://localhost:5001/stop_rosbridge'));
+                            if (res.statusCode == 200) {
+                              appState.isConnected = false;
+                              appState.connectionStatus = "Disconnected";
+                              appState.notifyListeners();
+                              _snack('ROS Bridge stopped');
+                            }
+                          }
+                        },
+                        child: Text(appState.isConnected
+                            ? "Stop ROS"
+                            : "Launch & Connect"),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // 설정 버튼 --------------------------------------------------
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          showLidarConfig = !showLidarConfig;
+                          showSlamConfig = false;
+                        });
+                      },
+                      icon: const Icon(Icons.settings),
+                      label: const Text("LiDAR Setting"),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          showSlamConfig = !showSlamConfig;
+                          showLidarConfig = false;
+                        });
+                      },
+                      icon: const Icon(Icons.settings),
+                      label: const Text("SLAM Setting"),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // 라이다 실행/중지 버튼 -------------------------------------
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     ElevatedButton.icon(
+                      icon: const Icon(Icons.sensors_outlined),
+                      label: const Text('Launch LiDAR'),
                       onPressed: _launchSlam,
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.stop_circle, color: Colors.red),
+                      label: const Text('Stop LiDAR'),
+                      onPressed: _stopSlam,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                const BigCard(),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ElevatedButton.icon(
                       icon: const Icon(Icons.map),
                       label: const Text('Launch SLAM'),
+                      onPressed: _launchSlam,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
-                      onPressed: _stopSlam,
                       icon: const Icon(Icons.stop_circle, color: Colors.red),
                       label: const Text('Stop SLAM'),
+                      onPressed: _stopSlam,
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          const VerticalDivider(thickness: 1, width: 1),
-          // Right pane ------------------------------------------------------
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Configuration', style: Theme.of(context).textTheme.headlineMedium),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: ListView(
-                      children: _config.entries
-                          .map((e) => ConfigRow(
-                                name: e.key,
-                                initialValue: '${e.value}',
-                                description: _desc[e.key]!,
-                              ))
-                          .toList(),
+        ),
+
+        // 설정창 슬라이드 ---------------------------------------------------
+        if (showLidarConfig || showSlamConfig)
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 500,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 100),
+              transitionBuilder: (child, animation) {
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(1, 0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                );
+              },
+              child: Container(
+                key: ValueKey(showLidarConfig ? 'lidar' : 'slam'),
+                color: Colors.white,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Configuration',
+                        style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          if (showLidarConfig)
+                            ..._lidarConfig.entries.map((e) => ConfigRow(
+                                  name: e.key,
+                                  initialValue: '${e.value}',
+                                  description: _desc[e.key] ?? '-',
+                                )),
+                          if (showSlamConfig)
+                            ..._slamConfig.entries.map((e) => ConfigRow(
+                                  name: e.key,
+                                  initialValue: '${e.value}',
+                                  description: _desc[e.key] ?? '-',
+                                )),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: _saveConfig,
-                      icon: const Icon(Icons.save),
-                      label: const Text('Save'),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        onPressed: _saveConfig,
+                        icon: const Icon(Icons.save),
+                        label: const Text('Save'),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
-
 
 class Sensor extends StatelessWidget {
   @override
@@ -482,7 +620,6 @@ class Sensor extends StatelessWidget {
   }
 }
 
-
 class DataMoniter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -491,76 +628,6 @@ class DataMoniter extends StatelessWidget {
 
     return Column(
       children: [
-        // 🟢 상단 연결 버튼
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "ROS Status: ${appState.connectionStatus}",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (!appState.isConnected) {
-                    // ➕ 연결 시도
-                    try {
-                      final res = await http.post(
-                        Uri.parse('http://localhost:5001/launch_rosbridge'),
-                      );
-
-                      if (res.statusCode == 200) {
-                        print('✅ rosbridge launched!');
-                        appState.connectToROSBridge(); // WebSocket 연결
-                      } else {
-                        print('Flask launch error: ${res.body}');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('Failed to launch ROS bridge')),
-                        );
-                      }
-                    } catch (e) {
-                      print('HTTP exception: $e');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text('Connection to launcher failed')),
-                      );
-                    }
-                  } else {
-                    // 종료 시도
-                    try {
-                      final res = await http.post(
-                        Uri.parse('http://localhost:5001/stop_rosbridge'),
-                      );
-
-                      if (res.statusCode == 200) {
-                        print('rosbridge stopped!');
-                        appState.isConnected = false;
-                        appState.connectionStatus = "Disconnected";
-                        appState.notifyListeners();
-                      } else {
-                        print('stop error: ${res.body}');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to stop ROS bridge')),
-                        );
-                      }
-                    } catch (e) {
-                      print('HTTP exception: $e');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text('Failed to contact stop server')),
-                      );
-                    }
-                  }
-                },
-                child: Text(
-                    appState.isConnected ? "Stop ROS" : "Launch & Connect"),
-              ),
-            ],
-          ),
-        ),
-
         // 🟦 본문: 그래프 Row (xy + 시계열)
         Expanded(
           child: Row(
