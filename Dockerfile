@@ -51,7 +51,9 @@ RUN apt-get update && apt-get install -y \
     cmake \
     python3-colcon-common-extensions \
     python3-pip \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    iputils-ping \
+    net-tools
 
 # ========================
 # 4. Python requirements 설치 (옵션)
@@ -73,7 +75,10 @@ RUN git clone -b ros2 --recurse-submodules https://github.com/ouster-lidar/ouste
 # ========================
 WORKDIR /root/ros2_ws
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    colcon build --symlink-install
+    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# RUN python3 -m pip install ~root/SLAM_Application_Project/dependency/flask-3.1.1.tar.gz
+
 
 # ========================
 # 7. Default 실행 셸
