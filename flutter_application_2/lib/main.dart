@@ -11,6 +11,7 @@ import 'parameter_descriptions.dart'; // 설명 Map
 import 'dart:io';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_writer/yaml_writer.dart';
+import 'package:flutter/material.dart';
 
 void main() {
   runApp(MyApp());
@@ -57,6 +58,7 @@ class MyAppState extends ChangeNotifier {
 
   bool isConnected = false;
   String connectionStatus = "Disconnected";
+  String testStatus = "대기";
 
   IOWebSocketChannel? channel;
 
@@ -535,128 +537,208 @@ class _SlamDashboardState extends State<SlamDashboard> {
           top: 0,
           bottom: 0,
           child: Center(
-            child: Column(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 상태 & 연결 버튼 ------------------------------------------
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        "ROS Status: ${appState.connectionStatus}",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: () async {
-                          if (!appState.isConnected) {
-                            final res = await http.post(Uri.parse(
-                                'http://localhost:5001/launch_rosbridge'));
-                            if (res.statusCode == 200 ||
-                                res.statusCode == 400) {
-                              await Future.delayed(Duration(seconds: 3));
-                              appState.connectToROSBridge();
-                              _snack('ROS Bridge launched');
-                            }
-                          } else {
-                            final res = await http.post(Uri.parse(
-                                'http://localhost:5001/stop_rosbridge'));
-                            if (res.statusCode == 200) {
-                              appState.isConnected = false;
-                              appState.connectionStatus = "Disconnected";
-                              appState.notifyListeners();
-                              _snack('ROS Bridge stopped');
-                            }
-                          }
-                        },
-                        child: Text(appState.isConnected
-                            ? "Stop ROS"
-                            : "Launch & Connect"),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // 설정 버튼 --------------------------------------------------
-                Row(
+                Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          showLidarConfig = !showLidarConfig;
-                          showSlamConfig = false;
-                        });
-                      },
-                      icon: const Icon(Icons.settings),
-                      label: const Text("LiDAR Setting"),
+                    // 상태 & 연결 버튼 ------------------------------------------
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "ROS 상태: ${appState.connectionStatus}",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (!appState.isConnected) {
+                                final res = await http.post(Uri.parse(
+                                    'http://localhost:5001/launch_rosbridge'));
+                                if (res.statusCode == 200 ||
+                                    res.statusCode == 400) {
+                                  await Future.delayed(Duration(seconds: 3));
+                                  appState.connectToROSBridge();
+                                  _snack('ROS Bridge launched');
+                                }
+                              } else {
+                                final res = await http.post(Uri.parse(
+                                    'http://localhost:5001/stop_rosbridge'));
+                                if (res.statusCode == 200) {
+                                  appState.isConnected = false;
+                                  appState.connectionStatus = "Disconnected";
+                                  appState.notifyListeners();
+                                  _snack('ROS Bridge stopped');
+                                }
+                              }
+                            },
+                            child: Text(appState.isConnected
+                                ? "ROS 정지"
+                                : "시작 & 연결"),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          showSlamConfig = !showSlamConfig;
-                          showLidarConfig = false;
-                        });
-                      },
-                      icon: const Icon(Icons.settings),
-                      label: const Text("SLAM Setting"),
+                    const SizedBox(height: 24),
+                
+                    // 설정 버튼 --------------------------------------------------
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              showLidarConfig = !showLidarConfig;
+                              showSlamConfig = false;
+                            });
+                          },
+                          icon: const Icon(Icons.settings),
+                          label: const Text("LiDAR 세팅"),
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              showSlamConfig = !showSlamConfig;
+                              showLidarConfig = false;
+                            });
+                          },
+                          icon: const Icon(Icons.settings),
+                          label: const Text("SLAM 세팅"),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                
+                    // 라이다 실행/중지 버튼 -------------------------------------
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.sensors_outlined),
+                          label: const Text('LiDAR 활성화'),
+                          onPressed: _launchLiDAR,
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.stop_circle, color: Colors.red),
+                          label: const Text('LiDAR 비활성화'),
+                          onPressed: _stopLiDAR,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    // const BigCard(),
+                    // const SizedBox(height: 24),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.map),
+                          label: const Text('운동 계측 시작'),
+                          onPressed: _launchSlam,
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.stop_circle, color: Colors.red),
+                          label: const Text('운동 계측 종료'),
+                          onPressed: _stopSlam,
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+              const SizedBox(width: 24),
+              Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "시험 상태: ${appState.testStatus}",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton(
+                            onPressed: () async {
 
-                // 라이다 실행/중지 버튼 -------------------------------------
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.sensors_outlined),
-                      label: const Text('Launch LiDAR'),
-                      onPressed: _launchLiDAR,
+                            },
+                            child: Text(appState.isConnected
+                                ? "시험 타이머 종료"
+                                : "시험 타이머 시작"),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.stop_circle, color: Colors.red),
-                      label: const Text('Stop LiDAR'),
-                      onPressed: _stopLiDAR,
+                    const SizedBox(height: 24),
+                
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.send),
+                          label: const Text('데이터 수신'),
+                          onPressed: _launchSlam,
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.stop_circle, color: Colors.red),
+                          label: const Text('수신 정지'),
+                          onPressed: _stopSlam,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const BigCard(),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.map),
-                      label: const Text('Launch SLAM'),
-                      onPressed: _launchSlam,
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.send_and_archive),
+                          label: const Text('데이터 저장'),
+                          onPressed: _launchSlam,
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.stop_circle, color: Colors.red),
+                          label: const Text('저장 정지'),
+                          onPressed: _stopSlam,
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.stop_circle, color: Colors.red),
-                      label: const Text('Stop SLAM'),
-                      onPressed: _stopSlam,
-                    ),
-                  ],
-                ),
+              ],
+
+              )
               ],
             ),
           ),
@@ -922,3 +1004,4 @@ Future<void> launchRosbridgeViaAPI() async {
     print('Error: $e');
   }
 }
+
