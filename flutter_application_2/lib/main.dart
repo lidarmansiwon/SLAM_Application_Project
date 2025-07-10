@@ -8,6 +8,9 @@ import 'package:web_socket_channel/status.dart' as status;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'parameter_descriptions.dart'; // 설명 Map
+import 'dart:io';
+import 'package:yaml/yaml.dart';
+import 'package:yaml_writer/yaml_writer.dart';
 
 void main() {
   runApp(MyApp());
@@ -50,6 +53,7 @@ class MyAppState extends ChangeNotifier {
   final List<double> yawSeries = [];
   final List<double> uSeries = [];
   final List<double> vSeries = [];
+  final List<double> rSeries = [];
 
   bool isConnected = false;
   String connectionStatus = "Disconnected";
@@ -67,8 +71,8 @@ class MyAppState extends ChangeNotifier {
       // subscribe 요청
       newChannel.sink.add(jsonEncode({
         "op": "subscribe",
-        "topic": "/ekf/odometry",
-        "type": "nav_msgs/msg/Odometry"
+        "topic": "/navigation_data",
+        "type": "mk3_msgs/msg/NavigationType"
       }));
 
       // stream listen
@@ -108,10 +112,8 @@ class MyAppState extends ChangeNotifier {
     try {
       final decoded = jsonDecode(data);
 
-      final x =
-          decoded['msg']['pose']['pose']['position']['x']?.toDouble() ?? 0.0;
-      final y =
-          decoded['msg']['pose']['pose']['position']['y']?.toDouble() ?? 0.0;
+      final x = decoded['x']?.toDouble() ?? 0.0;
+      final y = decoded['y']?.toDouble() ?? 0.0;
       odomPoints.add(Offset(x, -y));
 
       final header = decoded['msg']['header']['stamp'];
@@ -120,15 +122,27 @@ class MyAppState extends ChangeNotifier {
       final time = sec + nsec / 1e9;
       _baseTime ??= time;
       final relTime = time - _baseTime!;
-      timeStamps.add(relTime);
+
+      final test_time = decoded['msg']['time'];
+      timeStamps.add(test_time);
+
+      // orientation (rad → deg)
+      roll = decoded['phi']?.toDouble() ?? 0.0;
+      pitch = decoded['theta']?.toDouble() ?? 0.0;
+      yaw = decoded['psi']?.toDouble() ?? 0.0;
+
+      // velocity
+      u = decoded['u']?.toDouble() ?? 0.0;
+      v = decoded['v']?.toDouble() ?? 0.0;
+      final r = decoded['r']?.toDouble() ?? 0.0;
 
       rollSeries.add(roll);
       pitchSeries.add(pitch);
       yawSeries.add(yaw);
       uSeries.add(u);
       vSeries.add(v);
+      rSeries.add(r); // 추가 필요 시 선언해야 함
 
-      // 버퍼 제한
       if (timeStamps.length > 1000) {
         timeStamps.removeAt(0);
         rollSeries.removeAt(0);
@@ -136,24 +150,11 @@ class MyAppState extends ChangeNotifier {
         yawSeries.removeAt(0);
         uSeries.removeAt(0);
         vSeries.removeAt(0);
+        rSeries.removeAt(0);
       }
 
-      final q = decoded['msg']['pose']['pose']['orientation'];
-      final xq = q['x']?.toDouble() ?? 0.0;
-      final yq = q['y']?.toDouble() ?? 0.0;
-      final zq = q['z']?.toDouble() ?? 0.0;
-      final wq = q['w']?.toDouble() ?? 1.0;
-
-      u = decoded['msg']['twist']['twist']['linear']['x']?.toDouble() ?? 0.0;
-      v = decoded['msg']['twist']['twist']['linear']['y']?.toDouble() ?? 0.0;
-
-      final euler = eulerFromQuaternion(xq, yq, zq, wq);
-      roll = euler[0] * 180 / pi;
-      pitch = euler[1] * 180 / pi;
-      yaw = euler[2] * 180 / pi;
-
       if (odomPoints.length > 500) odomPoints.removeAt(0);
-      notifyListeners(); // 데이터 갱신 알림
+      notifyListeners();
     } catch (e) {
       print("Parse error: $e");
     }
@@ -273,17 +274,55 @@ class BigCard extends StatelessWidget {
 }
 
 // ───────────────────────────────────────────────── ConfigRow ──────────────────
-class ConfigRow extends StatelessWidget {
-  const ConfigRow({
-    super.key,
-    required this.name,
-    required this.initialValue,
-    required this.description,
-  });
-
+class ConfigRow extends StatefulWidget {
   final String name;
   final String initialValue;
   final String description;
+  final ValueChanged<String>? onChanged;
+
+  const ConfigRow({
+    Key? key,
+    required this.name,
+    required this.initialValue,
+    required this.description,
+    this.onChanged,
+  }) : super(key: key);
+
+  @override
+  _ConfigRowState createState() => _ConfigRowState();
+}
+
+class _ConfigRowState extends State<ConfigRow> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+
+    // 커서가 맨 뒤로 이동하도록 설정 (입력 끊김 방지)
+    _controller.selection = TextSelection.fromPosition(
+      TextPosition(offset: _controller.text.length),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant ConfigRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 초기값이 바뀐 경우만 텍스트 변경
+    if (oldWidget.initialValue != widget.initialValue) {
+      _controller.text = widget.initialValue;
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: _controller.text.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -292,14 +331,15 @@ class ConfigRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(flex: 2, child: Text(name)),
+          Expanded(flex: 2, child: Text(widget.name)),
           Expanded(
             flex: 3,
             child: Tooltip(
-              message: description,
+              message: widget.description,
               waitDuration: const Duration(milliseconds: 300),
               child: TextField(
-                controller: TextEditingController(text: initialValue),
+                controller: _controller,
+                onChanged: widget.onChanged,
                 decoration: const InputDecoration(
                   isDense: true,
                   border: OutlineInputBorder(),
@@ -322,43 +362,119 @@ class SlamDashboard extends StatefulWidget {
 }
 
 class _SlamDashboardState extends State<SlamDashboard> {
-  // Parameters ---------------------------------------------------------------
-  final Map<String, dynamic> _lidarConfig = {
-    'sensorhost_ip': '192.168.1.1',
-    'udp_dest_ip': '192.168.1.2'
+  // 파일 경로
+  final String _slamConfigPath =
+      '/home/siwon/ros2_ws/src/lidarslam_ros2/lidarslam/param/lidarslam.yaml';
+  final String _lidarConfigPath =
+      '/home/siwon/ros2_ws/src/ouster-ros/ouster-ros/config/driver_params.yaml';
+
+  // 현재 config
+  Map<String, dynamic> _scanMatcherConfig = {};
+  Map<String, dynamic> _graphSlamConfig = {};
+  Map<String, dynamic> _lidarConfig = {
+    'sensor_hostname': '',
+    'udp_dest': '',
   };
 
-  final Map<String, dynamic> _slamConfig = {
-    'ndt_resolution': 2.0,
-    'ndt_num_threads': 2,
-    'gicp_corr_dist_threshold': 5.0,
-    'trans_for_mapupdate': 1.5,
-    'vg_size_for_input': 0.5,
-    'vg_size_for_map': 0.1,
-    'set_initial_pose': true,
-    'initial_pose_x': 0.0,
-    'initial_pose_y': 0.0,
-    'initial_pose_z': 0.0,
-    'initial_pose_qx': 0.0,
-    'initial_pose_qy': 0.0,
-    'initial_pose_qz': 0.0,
-    'initial_pose_qw': 1.0,
-    'gb_ndt_resolution': 1.0,
-    'gb_ndt_num_threads': 2,
-    'voxel_leaf_size': 0.1,
-    'loop_detection_period': 3000,
-    'threshold_loop_closure_score': 0.7,
-    'distance_loop_closure': 100.0,
-    'range_of_searching_loop_closure': 20.0,
-    'search_submap_num': 2,
-    'num_adjacent_pose_constraints': 5,
-    'use_save_map_in_loop': true,
-    'debug_flag': true,
-    'scan_min_range': 1.0,
-    'scan_max_range': 200.0,
-    'scan_period': 0.2,
-    'use_min_max_filter': true,
-  };
+  Future<void> _loadSlamConfigFromFile() async {
+    try {
+      final slamFile = File(_slamConfigPath);
+      final slamContent = await slamFile.readAsString();
+      final slamData = loadYaml(slamContent);
+
+      final lidarFile = File(_lidarConfigPath);
+      final lidarContent = await lidarFile.readAsString();
+      final lidarData = loadYaml(lidarContent);
+
+      final allParams = Map<String, dynamic>.from(
+        lidarData['ouster/os_driver']['ros__parameters'] ?? {},
+      );
+
+      setState(() {
+        _scanMatcherConfig = Map<String, dynamic>.from(
+          slamData['scan_matcher']['ros__parameters'] ?? {},
+        );
+        _graphSlamConfig = Map<String, dynamic>.from(
+          slamData['graph_based_slam']['ros__parameters'] ?? {},
+        );
+        _lidarConfig = {
+          'sensor_hostname': allParams['sensor_hostname'] ?? '',
+          'udp_dest': allParams['udp_dest'] ?? '',
+        };
+      });
+    } catch (e) {
+      _snack('Failed to load config: $e');
+    }
+  }
+
+  Future<void> _saveSlamConfigToFile() async {
+    try {
+      final writer = YAMLWriter();
+
+      // SLAM 설정 저장 ------------------------------
+      final slamWrapped = {
+        'scan_matcher': {
+          'ros__parameters': _scanMatcherConfig,
+        },
+        'graph_based_slam': {
+          'ros__parameters': _graphSlamConfig,
+        },
+      };
+      final slamYaml = writer.write(slamWrapped);
+      final slamFile = File(_slamConfigPath);
+      await slamFile.writeAsString(slamYaml);
+
+      // LiDAR 설정 병합 저장 -----------------------
+      final lidarFile = File(_lidarConfigPath);
+      final existing = await lidarFile.readAsString();
+      final parsed = loadYaml(existing);
+
+      // 기존 전체를 Map으로 변환
+      final Map<String, dynamic> merged =
+          Map<String, dynamic>.from(parsed ?? {});
+      final Map<String, dynamic> osDriver =
+          Map<String, dynamic>.from(merged['ouster/os_driver'] ?? {});
+
+      final Map<String, dynamic> rosParams =
+          Map<String, dynamic>.from(osDriver['ros__parameters'] ?? {});
+
+      // 원하는 key만 덮어쓰기
+      rosParams['sensor_hostname'] = _lidarConfig['sensor_hostname'];
+      rosParams['udp_dest'] = _lidarConfig['udp_dest'];
+
+      // 다시 병합
+      osDriver['ros__parameters'] = rosParams;
+      merged['ouster/os_driver'] = osDriver;
+
+      final lidarYaml = writer.write(merged);
+      await lidarFile.writeAsString(lidarYaml);
+
+      _snack('Configuration saved!');
+    } catch (e) {
+      _snack('Save failed: $e');
+    }
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSlamConfigFromFile();
+  }
+
+  void _saveConfig() {
+    _saveSlamConfigToFile();
+  }
+
+  dynamic _parseDynamic(String val) {
+    if (val.toLowerCase() == 'true') return true;
+    if (val.toLowerCase() == 'false') return false;
+    final numVal = num.tryParse(val);
+    return numVal ?? val;
+  }
 
   late final Map<String, String> _desc = parameterDescriptions;
 
@@ -385,9 +501,26 @@ class _SlamDashboardState extends State<SlamDashboard> {
     }
   }
 
-  void _saveConfig() => _snack('Configuration saved!');
-  void _snack(String msg) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  Future<void> _launchLiDAR() async {
+    try {
+      final res =
+          await http.post(Uri.parse('http://localhost:5001/launch_lidar'));
+      _snack(res.statusCode == 200 ? 'LiDAR 센서 활성화' : '센서 실행 실패 – ${res.body}');
+    } catch (_) {
+      _snack('Connection error');
+    }
+  }
+
+  Future<void> _stopLiDAR() async {
+    try {
+      final res =
+          await http.post(Uri.parse('http://localhost:5001/stop_lidar'));
+      _snack(
+          res.statusCode == 200 ? 'LiDAR 센서 비활성화' : '센서 종료 실패 – ${res.body}');
+    } catch (_) {
+      _snack('Connection error');
+    }
+  }
 
   // UI ----------------------------------------------------------------------
   @override
@@ -495,13 +628,13 @@ class _SlamDashboardState extends State<SlamDashboard> {
                     ElevatedButton.icon(
                       icon: const Icon(Icons.sensors_outlined),
                       label: const Text('Launch LiDAR'),
-                      onPressed: _launchSlam,
+                      onPressed: _launchLiDAR,
                     ),
                     const SizedBox(width: 16),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.stop_circle, color: Colors.red),
                       label: const Text('Stop LiDAR'),
-                      onPressed: _stopSlam,
+                      onPressed: _stopLiDAR,
                     ),
                   ],
                 ),
@@ -565,13 +698,50 @@ class _SlamDashboardState extends State<SlamDashboard> {
                                   name: e.key,
                                   initialValue: '${e.value}',
                                   description: _desc[e.key] ?? '-',
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _lidarConfig[e.key] = val;
+                                    });
+                                  },
                                 )),
-                          if (showSlamConfig)
-                            ..._slamConfig.entries.map((e) => ConfigRow(
+                          if (showSlamConfig) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Scan Matcher Parameters',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const Divider(),
+                            ..._scanMatcherConfig.entries.map((e) => ConfigRow(
                                   name: e.key,
                                   initialValue: '${e.value}',
                                   description: _desc[e.key] ?? '-',
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _scanMatcherConfig[e.key] =
+                                          _parseDynamic(val);
+                                    });
+                                  },
                                 )),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Graph-Based SLAM Parameters',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const Divider(),
+                            ..._graphSlamConfig.entries.map((e) => ConfigRow(
+                                  name: e.key,
+                                  initialValue: '${e.value}',
+                                  description: _desc[e.key] ?? '-',
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _graphSlamConfig[e.key] =
+                                          _parseDynamic(val);
+                                    });
+                                  },
+                                )),
+                          ],
                         ],
                       ),
                     ),
@@ -656,8 +826,7 @@ class DataMoniter extends StatelessWidget {
                     _buildChart("Yaw", appState.timeStamps, appState.yawSeries),
                     _buildChart("u", appState.timeStamps, appState.uSeries),
                     _buildChart("v", appState.timeStamps, appState.vSeries),
-                    _buildChart("r", appState.timeStamps,
-                        appState.vSeries), // 필요 시 rSeries로 수정
+                    _buildChart("r", appState.timeStamps, appState.rSeries),
                   ],
                 ),
               ),

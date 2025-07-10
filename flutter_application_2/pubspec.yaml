@@ -17,6 +17,8 @@ dependencies:
   web_socket_channel: ^2.4.0  # 추가
   fl_chart: ^0.66.2
   http: ^0.13.6
+  yaml: ^3.1.1
+  yaml_writer: ^1.0.0
 
 dev_dependencies:
   flutter_test:
