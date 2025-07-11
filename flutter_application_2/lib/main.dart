@@ -4,14 +4,16 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:web_socket_channel/io.dart';
 import 'dart:math';
-import 'package:web_socket_channel/status.dart' as status;
+// import 'package:web_socket_channel/status.dart' as status;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'parameter_descriptions.dart'; // 설명 Map
 import 'dart:io';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_writer/yaml_writer.dart';
-import 'package:flutter/material.dart';
+
+import 'package:flutter_cube/flutter_cube.dart';
+import 'package:vector_math/vector_math_64.dart' as vm;
 
 void main() {
   runApp(MyApp());
@@ -144,6 +146,7 @@ class MyAppState extends ChangeNotifier {
       y = (payload['y'] as num?)?.toDouble() ?? 0.0;
       z = (payload['z'] as num?)?.toDouble() ?? 0.0;
 
+      // deg
       phi = (payload['phi'] as num?)?.toDouble() ?? 0.0;
       theta = (payload['theta'] as num?)?.toDouble() ?? 0.0;
       psi = (payload['psi'] as num?)?.toDouble() ?? 0.0;
@@ -377,6 +380,10 @@ class _SlamDashboardState extends State<SlamDashboard> {
     'sensor_hostname': '',
     'udp_dest': '',
   };
+
+  late Scene scene;
+  late Object boat;
+  late Object globalAxes;
 
   Future<void> _loadSlamConfigFromFile() async {
     try {
@@ -859,6 +866,9 @@ class _SlamDashboardState extends State<SlamDashboard> {
                     ],
                   ),
                 ),
+                // ─────────── ② 3D 뷰 영역 추가 ───────────
+
+                const SizedBox(height: 16),
                 // ────────── 하단 데이터 패널 ──────────
                 _buildDataPanel(appState),
               ],
@@ -1010,28 +1020,60 @@ class _SlamDashboardState extends State<SlamDashboard> {
   }
 }
 
-class Sensor extends StatelessWidget {
+class Sensor extends StatefulWidget {
+  const Sensor({Key? key}) : super(key: key);
+  @override
+  State<Sensor> createState() => _SensorState();
+}
+
+class _SensorState extends State<Sensor> {
+  late Object globalAxes;
+  late Object sensorAxes;
+  late Scene scene;
+
   @override
   Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
+    final appState = context.watch<MyAppState>();
 
-    if (appState.favorites.isEmpty) {
-      return Center(
-        child: Text('No favorites yet.'),
-      );
-    }
+    return Scaffold(
+      appBar: AppBar(title: Text('Global + Sensor 3D Axes')),
+      body: Cube(
+        onSceneCreated: (Scene sc) {
+          scene = sc;
 
-    return ListView(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('You have '
-              '${appState.favorites.length} favorites:'),
-        ),
-        for (var pair in appState.favorites)
-          ListTile(
-              leading: Icon(Icons.favorite), title: Text(pair.asLowerCase)),
-      ],
+          // 1) 월드의 모든 자식 모델을 지웁니다.
+          scene.world.children.clear();
+
+          scene.camera.position.setFrom(vm.Vector3(15.0, 5.0, 10.0));
+          scene.camera.target.setFrom(vm.Vector3(0.0, 0.0, 0.0));
+
+          // 3) Global axes (크게, 고정)
+          globalAxes = Object(
+            fileName: 'assets/axes.obj',
+            scale: vm.Vector3(5.0, 5.0, 5.0),
+          );
+          scene.world.add(globalAxes);
+
+          // 4) Sensor axes (작게, 회전 업데이트)
+          sensorAxes = Object(
+            fileName: 'assets/Boat_.obj',
+            scale: vm.Vector3(10.0, 10.0, 10.0),
+          );
+          scene.world.add(sensorAxes);
+
+          globalAxes.position.setValues(0.0, 0.0, 0.0);
+          sensorAxes.position.setValues(0.0, 0.0, 0.0);
+          sensorAxes.rotation.setValues(-90.0, 0.0, 0.0);
+          sensorAxes.updateTransform();
+          scene.update();
+
+          if (appState.istestStatus) {
+            sensorAxes.rotation.setFrom(
+                vm.Vector3(appState.phi, appState.theta, appState.psi));
+            sensorAxes.updateTransform();
+          }
+        },
+      ),
     );
   }
 }
