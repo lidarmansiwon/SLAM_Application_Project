@@ -11,6 +11,8 @@ app = Flask(__name__)
 rosbridge_proc = None
 lidarslam_proc = None
 lidar_proc = None
+frmt_proc = None
+serial_proc = None
 
 @app.route('/launch_rosbridge', methods=['POST'])
 def launch_rosbridge():
@@ -96,11 +98,71 @@ def stop_lidarslam():
             return f'Failed to stop lidarslam: {e}', 500
     return 'lidarslam not running', 400
 
+
+@app.route('/launch_frmt', methods=['POST'])
+def launch_frmt():
+    global frmt_proc
+    if frmt_proc is not None and frmt_proc.poll() is None:
+        return 'FRMT already running', 400
+    try:
+        frmt_proc = subprocess.Popen(
+            ['bash', '-c', 'source ~/study_ws/install/setup.bash && ros2 launch navigation odom_navigation.launch.py'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            preexec_fn=os.setsid
+        )
+        return 'FRMT Started', 200
+    except Exception as e:
+        return str(e), 500
+
+@app.route('/stop_frmt', methods=['POST'])
+def stop_frmt():
+    global frmt_proc
+    if frmt_proc is not None and frmt_proc.poll() is None:
+        try:
+            os.killpg(os.getpgid(frmt_proc.pid), signal.SIGINT)
+            frmt_proc = None
+            return 'FRMT stopped', 200
+        except Exception as e:
+            return f'Failed to stop FRMT: {e}', 500
+    return 'FRMT not running', 400
+
+@app.route('/send_data', methods=['POST'])
+def send_data():
+    global serial_proc
+    if serial_proc is not None and serial_proc.poll() is None:
+        return 'Serial 데이터가 이미 전송되고 있음', 400
+    try:
+        serial_proc = subprocess.Popen(
+            ['bash', '-c', 'sudo chmod 777 /dev/tty* && source ~/study_ws/install/setup.bash && ros2 run ros2_serial_transporter navigation_serial_node'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            preexec_fn=os.setsid
+        )
+        return 'Serial Start', 200
+    except Exception as e:
+        return str(e), 500
+
+@app.route('/stop_data', methods=['POST'])
+def stop_data():
+    global serial_proc
+    if serial_proc is not None and serial_proc.poll() is None:
+        try:
+            os.killpg(os.getpgid(serial_proc.pid), signal.SIGINT)
+            serial_proc = None
+            return 'Sending Serial stopped', 200
+        except Exception as e:
+            return f'Failed to stop Serial: {e}', 500
+    return 'Serial not running', 400
+
+
 def cleanup_processes():
     print("[INFO] Cleaning up ROS nodes...")
     for proc, name in [(rosbridge_proc, "rosbridge"),
                        (lidarslam_proc, "lidarslam"),
-                       (lidar_proc, "lidar")]:
+                       (lidar_proc, "lidar"),
+                       (frmt_proc, "frmt"),
+                       ]:
         if proc is not None and proc.poll() is None:
             try:
                 os.killpg(os.getpgid(proc.pid), signal.SIGINT)

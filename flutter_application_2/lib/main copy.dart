@@ -59,7 +59,6 @@ class MyAppState extends ChangeNotifier {
 
   bool isConnected = false;
   String connectionStatus = "Disconnected";
-  bool istestStatus = false;
   String testStatus = "대기";
 
   IOWebSocketChannel? channel;
@@ -114,32 +113,63 @@ class MyAppState extends ChangeNotifier {
 
   void _handleIncomingData(dynamic data) {
     try {
-      final decoded = jsonDecode(data) as Map<String, dynamic>;
+      final decoded = jsonDecode(data);
 
-      // rosbridge 메시지의 실제 페이로드는 decoded['msg'] 아래에 있습니다.
-      final payload = decoded['msg'] as Map<String, dynamic>;
+      // final x = decoded['x']?.toDouble() ?? 0.0;
+      // final y = decoded['y']?.toDouble() ?? 0.0;
+      // odomPoints.add(Offset(x, -y));
 
-      // 시험 상태
-      systime = (payload['systime'] as num?)?.toDouble() ?? 0.0;
-      runtime = (payload['time'] as num?)?.toDouble() ?? 0.0;
+      // final header = decoded['msg']['header']['stamp'];
+      // final sec = header['sec'] ?? 0;
+      // final nsec = header['nanosec'] ?? 0;
+      // final time = sec + nsec / 1e9;
+      // _baseTime ??= time;
+      // final relTime = time - _baseTime!;
 
-      // 계측 데이터
-      x = (payload['x'] as num?)?.toDouble() ?? 0.0;
-      y = (payload['y'] as num?)?.toDouble() ?? 0.0;
-      z = (payload['z'] as num?)?.toDouble() ?? 0.0;
+      // final test_time = decoded['msg']['time'];
+      // timeStamps.add(test_time);
 
-      phi = (payload['phi'] as num?)?.toDouble() ?? 0.0;
-      theta = (payload['theta'] as num?)?.toDouble() ?? 0.0;
-      psi = (payload['psi'] as num?)?.toDouble() ?? 0.0;
+      // // velocity
+      // u = decoded['u']?.toDouble() ?? 0.0;
+      // v = decoded['v']?.toDouble() ?? 0.0;
+      // final r = decoded['r']?.toDouble() ?? 0.0;
 
-      // 계산 데이터
-      u = (payload['u'] as num?)?.toDouble() ?? 0.0;
-      v = (payload['v'] as num?)?.toDouble() ?? 0.0;
-      w = (payload['w'] as num?)?.toDouble() ?? 0.0;
-      p = (payload['p'] as num?)?.toDouble() ?? 0.0;
-      q = (payload['q'] as num?)?.toDouble() ?? 0.0;
-      r = (payload['r'] as num?)?.toDouble() ?? 0.0;
+      // rollSeries.add(roll);
+      // pitchSeries.add(pitch);
+      // yawSeries.add(yaw);
+      // uSeries.add(u);
+      // vSeries.add(v);
+      // rSeries.add(r); // 추가 필요 시 선언해야 함
 
+      // if (timeStamps.length > 1000) {
+      //   timeStamps.removeAt(0);
+      //   rollSeries.removeAt(0);
+      //   pitchSeries.removeAt(0);
+      //   yawSeries.removeAt(0);
+      //   uSeries.removeAt(0);
+      //   vSeries.removeAt(0);
+      //   rSeries.removeAt(0);
+      // }
+
+      systime = decoded['systime']?.toDouble() ?? 0.0;
+      runtime = decoded['time']?.toDouble() ?? 0.0;
+
+      x = decoded['x']?.toDouble() ?? 0.0;
+      y = decoded['y']?.toDouble() ?? 0.0;
+      z = decoded['z']?.toDouble() ?? 0.0;
+
+      phi = decoded['phi']?.toDouble() ?? 0.0;
+      theta = decoded['theta']?.toDouble() ?? 0.0;
+      psi = decoded['psi']?.toDouble() ?? 0.0;
+
+      u = decoded['u']?.toDouble() ?? 0.0;
+      v = decoded['v']?.toDouble() ?? 0.0;
+      w = decoded['w']?.toDouble() ?? 0.0;
+      p = decoded['p']?.toDouble() ?? 0.0;
+      q = decoded['q']?.toDouble() ?? 0.0;
+      r = decoded['r']?.toDouble() ?? 0.0;
+
+      if (odomPoints.length > 500) odomPoints.removeAt(0);
       notifyListeners();
     } catch (e) {
       print("Parse error: $e");
@@ -508,303 +538,226 @@ class _SlamDashboardState extends State<SlamDashboard> {
     }
   }
 
-  Future<void> _launchFRMT() async {
-    try {
-      final res =
-          await http.post(Uri.parse('http://localhost:5001/launch_frmt'));
-      _snack(res.statusCode == 200 ? '시험 시작' : '시험 시작 실패 – ${res.body}');
-    } catch (_) {
-      _snack('Connection error');
-    }
-  }
-
-  Future<void> _stopFRMT() async {
-    try {
-      final res = await http.post(Uri.parse('http://localhost:5001/stop_frmt'));
-      _snack(res.statusCode == 200 ? '시험 종료' : '시험 종료 실패 – ${res.body}');
-    } catch (_) {
-      _snack('Connection error');
-    }
-  }
-
-  Future<void> _launchSerial() async {
-    try {
-      final res = await http.post(Uri.parse('http://localhost:5001/send_data'));
-      _snack(res.statusCode == 200 ? '데이터 수신 시작' : '수신 실패 – ${res.body}');
-    } catch (_) {
-      _snack('Connection error');
-    }
-  }
-
-  Future<void> _stopSerial() async {
-    try {
-      final res = await http.post(Uri.parse('http://localhost:5001/stop_data'));
-      _snack(res.statusCode == 200 ? '데이터 수신 종료' : '수신 종료 실패 – ${res.body}');
-    } catch (_) {
-      _snack('Connection error');
-    }
-  }
-
   // UI ----------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<MyAppState>();
-
     return Stack(
       children: [
-        // ────────────────────────────────────────────────────
-        // ① 메인 콘텐츠 + 데이터 패널을 함께 포함시키기
         AnimatedPositioned(
           duration: const Duration(milliseconds: 200),
           left: (showLidarConfig || showSlamConfig) ? -150 : 0,
           right: (showLidarConfig || showSlamConfig) ? 300 : 0,
           top: 0,
           bottom: 0,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // ────────── 컨트롤 영역 (가로 Row) ──────────
-                Expanded(
-                  child: Center(
-                    child: Row(
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // 상태 & 연결 버튼 ------------------------------------------
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "ROS 상태: ${appState.connectionStatus}",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton(
+                            onPressed: () async {
+                              if (!appState.isConnected) {
+                                final res = await http.post(Uri.parse(
+                                    'http://localhost:5001/launch_rosbridge'));
+                                if (res.statusCode == 200 ||
+                                    res.statusCode == 400) {
+                                  await Future.delayed(Duration(seconds: 3));
+                                  appState.connectToROSBridge();
+                                  _snack('ROS Bridge launched');
+                                }
+                              } else {
+                                final res = await http.post(Uri.parse(
+                                    'http://localhost:5001/stop_rosbridge'));
+                                if (res.statusCode == 200) {
+                                  appState.isConnected = false;
+                                  appState.connectionStatus = "Disconnected";
+                                  appState.notifyListeners();
+                                  _snack('ROS Bridge stopped');
+                                }
+                              }
+                            },
+                            child: Text(
+                                appState.isConnected ? "ROS 정지" : "시작 & 연결"),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // 설정 버튼 --------------------------------------------------
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // 좌측 버튼 그룹
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // 상태 & 연결 버튼 ------------------------------------------
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 8,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    "ROS 상태: ${appState.connectionStatus}",
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  ElevatedButton(
-                                    onPressed: () async {
-                                      if (!appState.isConnected) {
-                                        final res = await http.post(Uri.parse(
-                                            'http://localhost:5001/launch_rosbridge'));
-                                        if (res.statusCode == 200 ||
-                                            res.statusCode == 400) {
-                                          await Future.delayed(
-                                              Duration(seconds: 3));
-                                          appState.connectToROSBridge();
-                                          _snack('ROS Bridge launched');
-                                        }
-                                      } else {
-                                        final res = await http.post(Uri.parse(
-                                            'http://localhost:5001/stop_rosbridge'));
-                                        if (res.statusCode == 200) {
-                                          appState.isConnected = false;
-                                          appState.connectionStatus =
-                                              "Disconnected";
-                                          appState.notifyListeners();
-                                          _snack('ROS Bridge stopped');
-                                        }
-                                      }
-                                    },
-                                    child: Text(appState.isConnected
-                                        ? "ROS 정지"
-                                        : "시작 & 연결"),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // 설정 버튼 --------------------------------------------------
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      showLidarConfig = !showLidarConfig;
-                                      showSlamConfig = false;
-                                    });
-                                  },
-                                  icon: const Icon(Icons.settings),
-                                  label: const Text("LiDAR 세팅"),
-                                ),
-                                const SizedBox(width: 16),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      showSlamConfig = !showSlamConfig;
-                                      showLidarConfig = false;
-                                    });
-                                  },
-                                  icon: const Icon(Icons.settings),
-                                  label: const Text("SLAM 세팅"),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-
-                            // 라이다 실행/중지 버튼 -------------------------------------
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.sensors_outlined),
-                                  label: const Text('LiDAR 활성화'),
-                                  onPressed: _launchLiDAR,
-                                ),
-                                const SizedBox(width: 16),
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.stop_circle,
-                                      color: Colors.red),
-                                  label: const Text('LiDAR 비활성화'),
-                                  onPressed: _stopLiDAR,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            // const BigCard(),
-                            // const SizedBox(height: 24),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.map),
-                                  label: const Text('운동 계측 시작'),
-                                  onPressed: _launchSlam,
-                                ),
-                                const SizedBox(width: 16),
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.stop_circle,
-                                      color: Colors.red),
-                                  label: const Text('운동 계측 종료'),
-                                  onPressed: _stopSlam,
-                                ),
-                              ],
-                            ),
-                          ],
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              showLidarConfig = !showLidarConfig;
+                              showSlamConfig = false;
+                            });
+                          },
+                          icon: const Icon(Icons.settings),
+                          label: const Text("LiDAR 세팅"),
                         ),
-
-                        const SizedBox(width: 24),
-
-                        // 우측 버튼 그룹
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 8,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    "시험 상태: ${appState.testStatus}",
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  ElevatedButton(
-                                    onPressed: () async {
-                                      if (!appState.istestStatus) {
-                                        _launchFRMT();
-                                        appState.istestStatus = true;
-                                        appState.testStatus = "진행 중 ...";
-                                        appState.notifyListeners();
-                                      } else {
-                                        _stopFRMT();
-                                        appState.istestStatus = false;
-                                        appState.testStatus = "종료";
-                                        appState.notifyListeners();
-                                      }
-                                    },
-                                    child: Text(appState.istestStatus
-                                        ? "시험 타이머 종료"
-                                        : "시험 타이머 시작"),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.send),
-                                  label: const Text('데이터 수신'),
-                                  onPressed: _launchSerial,
-                                ),
-                                const SizedBox(width: 16),
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.stop_circle,
-                                      color: Colors.red),
-                                  label: const Text('수신 정지'),
-                                  onPressed: _stopSerial,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.send_and_archive),
-                                  label: const Text('데이터 저장'),
-                                  onPressed: _launchSlam,
-                                ),
-                                const SizedBox(width: 16),
-                                ElevatedButton.icon(
-                                  icon: const Icon(Icons.stop_circle,
-                                      color: Colors.red),
-                                  label: const Text('저장 정지'),
-                                  onPressed: _stopSlam,
-                                ),
-                              ],
-                            ),
-                          ],
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              showSlamConfig = !showSlamConfig;
+                              showLidarConfig = false;
+                            });
+                          },
+                          icon: const Icon(Icons.settings),
+                          label: const Text("SLAM 세팅"),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 24),
+
+                    // 라이다 실행/중지 버튼 -------------------------------------
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.sensors_outlined),
+                          label: const Text('LiDAR 활성화'),
+                          onPressed: _launchLiDAR,
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon:
+                              const Icon(Icons.stop_circle, color: Colors.red),
+                          label: const Text('LiDAR 비활성화'),
+                          onPressed: _stopLiDAR,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    // const BigCard(),
+                    // const SizedBox(height: 24),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.map),
+                          label: const Text('운동 계측 시작'),
+                          onPressed: _launchSlam,
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon:
+                              const Icon(Icons.stop_circle, color: Colors.red),
+                          label: const Text('운동 계측 종료'),
+                          onPressed: _stopSlam,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-
-                const SizedBox(height: 16),
-
-                // ────────── 하단 데이터 패널 ──────────
-                _buildDataPanel(appState),
+                const SizedBox(width: 24),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "시험 상태: ${appState.testStatus}",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton(
+                            onPressed: () async {},
+                            child: Text(appState.isConnected
+                                ? "시험 타이머 종료"
+                                : "시험 타이머 시작"),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.send),
+                          label: const Text('데이터 수신'),
+                          onPressed: _launchSlam,
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon:
+                              const Icon(Icons.stop_circle, color: Colors.red),
+                          label: const Text('수신 정지'),
+                          onPressed: _stopSlam,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.send_and_archive),
+                          label: const Text('데이터 저장'),
+                          onPressed: _launchSlam,
+                        ),
+                        const SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          icon:
+                              const Icon(Icons.stop_circle, color: Colors.red),
+                          label: const Text('저장 정지'),
+                          onPressed: _stopSlam,
+                        ),
+                      ],
+                    ),
+                  ],
+                )
               ],
             ),
           ),
         ),
 
-        // ────────────────────────────────────────────────────
-        // ② 우측 슬라이드 설정창
+        // 설정창 슬라이드 ---------------------------------------------------
         if (showLidarConfig || showSlamConfig)
           Positioned(
             right: 0,
@@ -901,47 +854,63 @@ class _SlamDashboardState extends State<SlamDashboard> {
               ),
             ),
           ),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, // ⬅️ 이걸로 위/아래 배치
+          children: [
+            // ... 기존 연결/버튼 UI ...
+            _buildDataPanel(appState), // 하단 고정
+          ],
+        ),
       ],
     );
   }
 
-// 데이터 패널 빌더는 그대로 재사용
   Widget _buildDataPanel(MyAppState state) {
-    String fmt(double v) => v.toStringAsFixed(3);
+    String format(double v) => v.toStringAsFixed(3);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, -2))
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // 시험 상태
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text("시험 상태", style: TextStyle(fontWeight: FontWeight.bold)),
-            Text("Sys Time [s]: ${fmt(state.systime)}"),
-            Text("Run Time [s]: ${fmt(state.runtime)}"),
-          ]),
-          // 계측 데이터
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text("계측 데이터", style: TextStyle(fontWeight: FontWeight.bold)),
-            Text("x: ${fmt(state.x)}, y: ${fmt(state.y)}, z: ${fmt(state.z)}"),
-            Text(
-                "phi: ${fmt(state.phi)}, theta: ${fmt(state.theta)}, yaw: ${fmt(state.psi)}"),
-          ]),
-          // 계산 데이터
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text("계산 데이터", style: TextStyle(fontWeight: FontWeight.bold)),
-            Text("u: ${fmt(state.u)}, v: ${fmt(state.v)}, w: ${fmt(state.w)}"),
-            Text("p: ${fmt(state.p)}, q: ${fmt(state.q)}, r: ${fmt(state.r)}"),
-          ]),
-        ],
+    return Card(
+      margin: const EdgeInsets.only(top: 32),
+      elevation: 3,
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text("📋 시험 상태",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text("Sys Time [s]: ${format(state.systime)}"),
+              Text("Run Time [s]: ${format(state.runtime)}"),
+            ]),
+            const SizedBox(width: 24),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("📈 계측 데이터",
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                    "x: ${format(state.x)}, y: ${format(state.y)}, z: ${format(state.z)}"),
+                Text(
+                    "phi: ${format(state.phi)}, theta: ${format(state.theta)}, yaw: ${format(state.psi)}"),
+              ],
+            ),
+            const SizedBox(width: 24),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("🧮 계산 데이터",
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                    "u: ${format(state.u)}, v: ${format(state.v)}, w: ${format(state.w)}"),
+                Text(
+                    "p: ${format(state.p)}, q: ${format(state.q)}, r: ${format(state.r)}"),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
