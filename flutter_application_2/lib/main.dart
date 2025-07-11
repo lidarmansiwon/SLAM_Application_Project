@@ -739,133 +739,126 @@ class _SlamDashboardState extends State<SlamDashboard> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-
-                        const SizedBox(width: 24),
-
-                        // 우측 버튼 그룹
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 8,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        "시험 상태: ${appState.testStatus}",
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      ElevatedButton(
-                                        onPressed: () async {
-                                          if (!appState.istestStatus) {
-                                            _launchFRMT();
-                                            appState.istestStatus = true;
-                                            appState.testStatus = "진행 중 ...";
-                                            appState.notifyListeners();
-                                          } else {
-                                            _stopFRMT();
-                                            appState.istestStatus = false;
-                                            appState.testStatus = "종료";
-                                            appState.notifyListeners();
-                                          }
-                                        },
-                                        child: Text(appState.istestStatus
-                                            ? "시험 타이머 종료"
-                                            : "시험 타이머 시작"),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        "데이터 수신: ${appState.SerialStatus}",
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      ElevatedButton(
-                                        onPressed: () async {
-                                          if (!appState.isSerial) {
-                                            _launchSerial();
-                                            appState.isSerial = true;
-                                            appState.SerialStatus = "수신";
-                                            appState.notifyListeners();
-                                          } else {
-                                            _stopSerial();
-                                            appState.isSerial = false;
-                                            appState.SerialStatus = "정지";
-                                            appState.notifyListeners();
-                                          }
-                                        },
-                                        child: Text(appState.isSerial
-                                            ? "수신 종료"
-                                            : "수신 시작"),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        "데이터 저장: ${appState.saveStatus}",
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      ElevatedButton(
-                                        onPressed: () async {
-                                          if (!appState.isSAVE) {
-                                            _launchSerial();
-                                            appState.isSAVE = true;
-                                            appState.saveStatus = " 저장";
-                                            appState.notifyListeners();
-                                          } else {
-                                            _stopSerial();
-                                            appState.isSAVE = false;
-                                            appState.saveStatus = "정지";
-                                            appState.notifyListeners();
-                                          }
-                                        },
-                                        child: Text(appState.isSAVE
-                                            ? "저장 종료"
-                                            : "저장 시작"),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
                           ],
                         ),
                       ],
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 16),
-
+                // 우측 버튼 그룹
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "시험 상태: ${appState.testStatus}",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 16),
+                                ElevatedButton(
+                                  onPressed: () async {
+                                    if (!appState.istestStatus) {
+                                      _launchFRMT();
+                                      appState.istestStatus = true;
+                                      appState.testStatus = "진행 중 ...";
+                                      appState.notifyListeners();
+                                    } else {
+                                      _stopFRMT();
+                                      appState.istestStatus = false;
+                                      appState.testStatus = "종료";
+                                      appState.notifyListeners();
+                                    }
+                                  },
+                                  child: Text(appState.istestStatus
+                                      ? "시험 타이머 종료"
+                                      : "시험 타이머 시작"),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "데이터 수신: ${appState.SerialStatus}",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 16),
+                                ElevatedButton(
+                                  onPressed: () async {
+                                    if (!appState.isSerial) {
+                                      _launchSerial();
+                                      appState.isSerial = true;
+                                      appState.SerialStatus = "수신";
+                                      appState.notifyListeners();
+                                    } else {
+                                      _stopSerial();
+                                      appState.isSerial = false;
+                                      appState.SerialStatus = "정지";
+                                      appState.notifyListeners();
+                                    }
+                                  },
+                                  child: Text(
+                                      appState.isSerial ? "수신 종료" : "수신 시작"),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "데이터 저장: ${appState.saveStatus}",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 16),
+                                ElevatedButton(
+                                  onPressed: () async {
+                                    if (!appState.isSAVE) {
+                                      _launchSerial();
+                                      appState.isSAVE = true;
+                                      appState.saveStatus = " 저장";
+                                      appState.notifyListeners();
+                                    } else {
+                                      _stopSerial();
+                                      appState.isSAVE = false;
+                                      appState.saveStatus = "정지";
+                                      appState.notifyListeners();
+                                    }
+                                  },
+                                  child:
+                                      Text(appState.isSAVE ? "저장 종료" : "저장 시작"),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 // ────────── 하단 데이터 패널 ──────────
                 _buildDataPanel(appState),
               ],
