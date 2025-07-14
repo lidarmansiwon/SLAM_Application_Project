@@ -134,7 +134,7 @@ def send_data():
         return 'Serial 데이터가 이미 전송되고 있음', 400
     try:
         serial_proc = subprocess.Popen(
-            ['bash', '-c', 'sudo chmod 777 /dev/tty* && source ~/study_ws/install/setup.bash && ros2 run ros2_serial_transporter navigation_serial_node'],
+            ['bash', '-c', 'source ~/study_ws/install/setup.bash && ros2 run ros2_serial_transporter navigation_serial_node'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             preexec_fn=os.setsid
